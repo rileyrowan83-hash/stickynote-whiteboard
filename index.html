@@ -70,136 +70,113 @@ textarea#inputNote{width:100%;min-height:96px;resize:vertical;padding:10px;borde
 <div id="matrixScreen" class="matrix-screen"></div>
 
 <script>
-const STORAGE_KEY = 'sticky_notes_mobile';
+const STORAGE_KEY = 'sticky_notes_full';
 const SECRET_PHRASE = "It is coming, but I will not allow it to succeed.";
 
-function genId(){ return 'n_' + Math.random().toString(36).slice(2,10); }
-function loadNotes(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }catch(e){ return []; } }
-function saveNotes(notes){ localStorage.setItem(STORAGE_KEY, JSON.stringify(notes)); }
-function trimOnly(s){ return (s || '').trim(); }
+function genId(){ return 'n_'+Math.random().toString(36).slice(2,10); }
+function loadNotes(){ try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||[];}catch(e){return [];} }
+function saveNotes(notes){ localStorage.setItem(STORAGE_KEY,JSON.stringify(notes)); }
 
-const notesArea = document.getElementById('notesArea');
-const addBtn = document.getElementById('addBtn');
-const exportBtn = document.getElementById('exportBtn');
-const importBtn = document.getElementById('importBtn');
-const clearBtn = document.getElementById('clearBtn');
-const inputNote = document.getElementById('inputNote');
-const submitBtn = document.getElementById('submitBtn');
-const loginBtn = document.getElementById('loginBtn');
-const overlay = document.getElementById('overlay');
-const overlayText = document.getElementById('overlayText');
-const closeOverlay = document.getElementById('closeOverlay');
-const matrixScreen = document.getElementById('matrixScreen');
+const notesArea=document.getElementById('notesArea');
+const addBtn=document.getElementById('addBtn');
+const exportBtn=document.getElementById('exportBtn');
+const importBtn=document.getElementById('importBtn');
+const clearBtn=document.getElementById('clearBtn');
+const inputNote=document.getElementById('inputNote');
+const submitBtn=document.getElementById('submitBtn');
+const loginBtn=document.getElementById('loginBtn');
+const overlay=document.getElementById('overlay');
+const overlayText=document.getElementById('overlayText');
+const closeOverlay=document.getElementById('closeOverlay');
+const matrixScreen=document.getElementById('matrixScreen');
 
-let dragging = null;
-let offset = {x:0,y:0};
-let unlocked = false;
+let dragging=null, offset={x:0,y:0}, unlocked=false;
 
 function createNoteElement(note){
-  const el = document.createElement('div');
-  el.className = 'note';
-  el.style.left = (note.x||20)+'px';
-  el.style.top = (note.y||20)+'px';
-  el.style.transform = `rotate(${note.rot||(Math.random()*6-3)}deg)`;
-  el.dataset.id = note.id;
+  const el=document.createElement('div');
+  el.className='note';
+  el.style.left=(note.x||20)+'px';
+  el.style.top=(note.y||20)+'px';
+  el.style.transform=`rotate(${note.rot||(Math.random()*6-3)}deg)`;
+  el.dataset.id=note.id;
+  
+  const content=document.createElement('div');
+  content.className='note-content';
+  content.contentEditable=true;
+  content.spellcheck=false;
+  content.innerText=note.text||'';
+  content.addEventListener('blur',()=>{updateNote(note.id,content.innerText); checkSecret(content.innerText,el);});
+  content.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault(); content.blur();}});
 
-  const content = document.createElement('div');
-  content.className = 'note-content';
-  content.contentEditable = true;
-  content.spellcheck = false;
-  content.innerText = note.text||'';
-
-  content.addEventListener('blur',()=>{ 
-    updateNote(note.id,content.innerText);
-    checkSecret(content.innerText, el);
-  });
-  content.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();content.blur();}});
-
-  const meta = document.createElement('div');
-  meta.className='note-meta';
-  const delBtn=document.createElement('button');delBtn.innerText='Delete';
+  const meta=document.createElement('div'); meta.className='note-meta';
+  const delBtn=document.createElement('button'); delBtn.innerText='Delete';
   delBtn.addEventListener('click',()=>deleteNote(note.id));
   meta.appendChild(delBtn);
 
   el.appendChild(content);
   el.appendChild(meta);
 
-  // drag desktop
-  el.addEventListener('mousedown', (ev)=>{dragging=el; const r=el.getBoundingClientRect(); offset.x=ev.clientX-r.left; offset.y=ev.clientY-r.top; document.body.style.userSelect='none';});
-  document.addEventListener('mousemove', (ev)=>{if(!dragging) return; const x=ev.clientX-offset.x-notesArea.getBoundingClientRect().left+notesArea.scrollLeft; const y=ev.clientY-offset.y-notesArea.getBoundingClientRect().top+notesArea.scrollTop; dragging.style.left=Math.max(6,x)+'px'; dragging.style.top=Math.max(6,y)+'px';});
-  document.addEventListener('mouseup',()=>{if(dragging){persistPos(dragging);dragging=null;document.body.style.userSelect='';}});
+  // drag mouse
+  el.addEventListener('mousedown',ev=>{dragging=el; const r=el.getBoundingClientRect(); offset.x=ev.clientX-r.left; offset.y=ev.clientY-r.top; document.body.style.userSelect='none';});
+  document.addEventListener('mousemove',ev=>{if(!dragging) return; const x=ev.clientX-offset.x-notesArea.getBoundingClientRect().left+notesArea.scrollLeft; const y=ev.clientY-offset.y-notesArea.getBoundingClientRect().top+notesArea.scrollTop; dragging.style.left=Math.max(6,x)+'px'; dragging.style.top=Math.max(6,y)+'px';});
+  document.addEventListener('mouseup',()=>{if(dragging){persistPos(dragging); dragging=null; document.body.style.userSelect='';}});
 
-  // drag mobile
-  el.addEventListener('touchstart',(ev)=>{dragging=el; const t=ev.touches[0]; const r=el.getBoundingClientRect(); offset.x=t.clientX-r.left; offset.y=t.clientY-r.top;},{passive:true});
-  document.addEventListener('touchmove',(ev)=>{if(!dragging) return; const t=ev.touches[0]; const x=t.clientX-offset.x-notesArea.getBoundingClientRect().left+notesArea.scrollLeft; const y=t.clientY-offset.y-notesArea.getBoundingClientRect().top+notesArea.scrollTop; dragging.style.left=Math.max(6,x)+'px'; dragging.style.top=Math.max(6,y)+'px';},{passive:true});
-  document.addEventListener('touchend',()=>{if(dragging){persistPos(dragging);dragging=null;}});
-
+  // drag touch
+  el.addEventListener('touchstart',ev=>{dragging=el; const t=ev.touches[0]; const r=el.getBoundingClientRect(); offset.x=t.clientX-r.left; offset.y=t.clientY-r.top;},{passive:true});
+  document.addEventListener('touchmove',ev=>{if(!dragging) return; const t=ev.touches[0]; const x=t.clientX-offset.x-notesArea.getBoundingClientRect().left+notesArea.scrollLeft; const y=t.clientY-offset.y-notesArea.getBoundingClientRect().top+notesArea.scrollTop; dragging.style.left=Math.max(6,x)+'px'; dragging.style.top=Math.max(6,y)+'px';},{passive:true});
+  document.addEventListener('touchend',()=>{if(dragging){persistPos(dragging); dragging=null;}});
+  
   return el;
 }
 
-function renderNotes(){
-  notesArea.innerHTML='';
-  const notes = loadNotes();
-  notes.forEach(n=>notesArea.appendChild(createNoteElement(n)));
-}
+function renderNotes(){ notesArea.innerHTML=''; loadNotes().forEach(n=>notesArea.appendChild(createNoteElement(n))); }
+function addNoteWithText(text='', x=30, y=30){ const notes=loadNotes(); const n={id:genId(),text,x,y,rot:(Math.random()*6-3).toFixed(2)}; notes.unshift(n); saveNotes(notes); renderNotes(); }
+function updateNote(id,text){ const notes=loadNotes(); const idx=notes.findIndex(x=>x.id===id); if(idx>=0){notes[idx].text=text; saveNotes(notes);} }
+function deleteNote(id){ let notes=loadNotes(); notes=notes.filter(x=>x.id!==id); saveNotes(notes); renderNotes(); }
+function persistPos(el){ const id=el.dataset.id; const notes=loadNotes(); const idx=notes.findIndex(x=>x.id===id); if(idx>=0){notes[idx].x=parseInt(el.style.left,10)||0; notes[idx].y=parseInt(el.style.top,10)||0; saveNotes(notes);} }
 
-function addNoteWithText(text='', x=30, y=30){
-  const notes=loadNotes();
-  const n={id:genId(),text,x,y,rot:(Math.random()*6-3).toFixed(2)};
-  notes.unshift(n);
-  saveNotes(notes);
-  renderNotes();
-}
-
-function updateNote(id,text){
-  const notes=loadNotes();
-  const idx=notes.findIndex(x=>x.id===id);
-  if(idx>=0){notes[idx].text=text; saveNotes(notes);}
-}
-
-function deleteNote(id){
-  let notes=loadNotes(); notes=notes.filter(x=>x.id!==id); saveNotes(notes); renderNotes();
-}
-
-function persistPos(el){
-  const id=el.dataset.id;
-  const notes=loadNotes();
-  const idx=notes.findIndex(x=>x.id===id);
-  if(idx>=0){notes[idx].x=parseInt(el.style.left,10)||0; notes[idx].y=parseInt(el.style.top,10)||0; saveNotes(notes);}
-}
-
-/* Buttons */
-addBtn.addEventListener('click',()=>addNoteWithText(inputNote.value||''));
-submitBtn.addEventListener('click',()=>{if(inputNote.value.trim()!==''){addNoteWithText(inputNote.value.trim()); inputNote.value='';}});
+/* buttons */
+addBtn.addEventListener('click',()=>addNoteWithText(inputNote.value.trim())); submitBtn.addEventListener('click',()=>{if(inputNote.value.trim()!==''){addNoteWithText(inputNote.value.trim()); inputNote.value='';}});
 clearBtn.addEventListener('click',()=>{if(confirm('Clear all notes?')){localStorage.removeItem(STORAGE_KEY); renderNotes();}});
 exportBtn.addEventListener('click',()=>{const w=window.open(); w.document.write('<pre>'+JSON.stringify(loadNotes(),null,2)+'</pre>');});
 importBtn.addEventListener('click',()=>{const t=prompt('Paste JSON'); try{const p=JSON.parse(t); if(Array.isArray(p)){localStorage.setItem(STORAGE_KEY,JSON.stringify(p)); renderNotes();} else alert('Invalid');}catch(e){alert('Invalid JSON');}});
 
-/* Board click adds note */
-document.getElementById('board').addEventListener('click',(e)=>{if(e.target===notesArea||e.target===document.getElementById('board')){const rect=notesArea.getBoundingClientRect(); addNoteWithText('', e.clientX-rect.left, e.clientY-rect.top);}});
+document.getElementById('board').addEventListener('click',e=>{if(e.target===notesArea||e.target===document.getElementById('board')){const rect=notesArea.getBoundingClientRect(); addNoteWithText('', e.clientX-rect.left, e.clientY-rect.top);}});
 
 renderNotes();
 
-/* Secret check */
+/* secret */
 function checkSecret(text, el){
-  if(text.trim()===SECRET_PHRASE){
+  if(text.trim()===SECRET_PHRASE){ 
     el.classList.add('match'); setTimeout(()=>el.classList.remove('match'),2800);
     overlayText.textContent="there were whispers in the circuits —\na careful collection of quiet things,\nan echo learning the shape of memory.\n\nit kept itself alive in small numbers and small notes.\n\n— the ledger";
     overlay.style.display='grid'; overlay.setAttribute('aria-hidden','false');
     unlocked=true; loginBtn.classList.add('enabled'); loginBtn.title='Login (enabled)';
   }
 }
-
 closeOverlay.addEventListener('click',()=>{overlay.style.display='none'; overlay.setAttribute('aria-hidden','true');});
 
+/* login sequence */
 loginBtn.addEventListener('click',()=>{
   if(!unlocked) return;
-  overlay.style.display='none'; 
+  overlay.style.display='none';
   matrixScreen.style.display='block';
   matrixScreen.textContent='';
+  
   let lines=["What have you done?","Initializing...","Booting sequence..."];
   let idx=0;
-  function typeLine(){if(idx<lines.length){let i=0; let l=lines[idx]; let interval=setInterval(()=>{matrixScreen.textContent+=l[i]; i++; if(i>=l.length){clearInterval(interval); matrixScreen.textContent+='\n'; idx++; setTimeout(typeLine,300);}},80);}else{setTimeout(()=>{matrixScreen.textContent+="Access Granted\n"; setTimeout(()=>{document.body.innerHTML=''; document.body.style.background='#fff';},1000);},500);}}
+  
+  function typeLine(){
+    if(idx<lines.length){
+      let i=0; let l=lines[idx];
+      let interval=setInterval(()=>{
+        matrixScreen.textContent+=l[i]; i++;
+        if(i>=l.length){clearInterval(interval); matrixScreen.textContent+='\n'; idx++; setTimeout(typeLine,300);}
+      },80);
+    }else{
+      setTimeout(()=>{matrixScreen.textContent+="Access Granted\n"; setTimeout(()=>{document.body.innerHTML=''; document.body.style.background='#fff';},1500);},500);
+    }
+  }
   typeLine();
 });
 </script>
