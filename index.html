@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Quiet Ledger — Whiteboard</title>
+<style>
+  :root{
+    --bg:#eef2f6;
+    --board:#fffef9;
+    --muted:#6b6e73;
+    --ink:#0b0b0c;
+    --shadow: 0 18px 40px rgba(10,10,12,0.08);
+  }
+  html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; -webkit-font-smoothing:antialiased;}
+  body{background:linear-gradient(180deg,#f3f6f9,#eef2f6); padding:18px; display:flex; justify-content:center; color:var(--ink);}
+
+  .container{width:100%;max-width:1300px; display:grid; grid-template-columns:1fr 400px; gap:20px; align-items:start;}
+  .board{
+    background:var(--board); border-radius:12px; padding:20px; min-height:80vh;
+    box-shadow:var(--shadow); border:1px solid rgba(0,0,0,0.04); position:relative; overflow:auto;
+  }
+  .board h1{margin:0;font-size:26px;}
+  .board p{color:var(--muted); margin-top:6px;margin-bottom:14px;}
+
+  .controls{display:flex; gap:8px; margin-bottom:12px;}
+  .btn{padding:8px 12px; border-radius:10px; border:none; cursor:pointer; font-weight:700;}
+  .btn.ghost{background:transparent;border:1px solid rgba(0,0,0,0.06);}
+  .btn.primary{background:#111827;color:#fff}
+
+  .notes-area{position:relative; width:100%; min-height:70vh; border-radius:10px; background:linear-gradient(180deg,#fbfbfb,#fffef8); border:1px dashed rgba(0,0,0,0.03); overflow:auto; padding:8px;}
+
+  .note {
+    position:absolute;
+    width:180px;
+    min-height:120px;
+    padding:12px;
+    border-radius:10px;
+    background: linear-gradient(180deg,#fff,#fff8d6);
+    box-shadow:0 10px 28px rgba(0,0,0,0.08);
+    border:1px solid rgba(0,0,0,0.04);
+    transform-origin:center;
+    touch-action:none;
+  }
+  .note .note-content{outline:none; white-space:pre-wrap; word-break:break-word; font-size:14px; line-height:1.2;}
+  .note .note-meta{display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:12px;}
+  .note .note-meta button{background:transparent;border:none;color:var(--muted);cursor:pointer;font-weight:600}
+
+  .note::before{
+    content:"";
+    position:absolute; left:12px; top:-8px; width:56px; height:12px;
+    background:linear-gradient(90deg, rgba(255,255,255,0.6), rgba(255,255,255,0.2));
+    border-radius:4px; transform:rotate(-4deg);
+  }
+
+  .side{min-height:80vh;}
+  .sticky-control{background:linear-gradient(180deg,#fff,#fff); padding:12px; border-radius:12px; box-shadow:var(--shadow); border:1px solid rgba(0,0,0,0.06);}
+  textarea#inputNote{width:100%; min-height:96px; resize:vertical; padding:10px; border-radius:8px; border:1px dashed rgba(0,0,0,0.06); font-family:inherit;}
+
+  footer.small{color:var(--muted); margin-top:12px; font-size:13px;}
+
+  @media (max-width:920px){
+    .container{grid-template-columns:1fr; padding-bottom:120px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="container" role="main">
+  <main class="board" aria-label="whiteboard">
+    <h1>Quiet Ledger</h1>
+    <p>A realistic whiteboard with plastic sticky notes — create quick reminders, quotes, lists, or daily tasks. Drag, edit, and they’ll stay on your device.</p>
+
+    <div class="controls">
+      <button id="addBtn" class="btn ghost">+ New Note</button>
+      <button id="exportBtn" class="btn">Export notes</button>
+      <button id="importBtn" class="btn ghost">Import</button>
+      <button id="clearBtn" class="btn" style="background:#f3f4f6;color:#111;border:1px solid rgba(0,0,0,0.04);">Clear all</button>
+    </div>
+
+    <div id="notesArea" class="notes-area" tabindex="0" aria-label="notes area">
+      <!-- notes appear here -->
+    </div>
+
+    <footer class="small">Notes are stored on this device. Use the sticky input on the right to add quick text.</footer>
+  </main>
+
+  <aside class="side" aria-label="controls">
+    <div class="sticky-control" role="region" aria-label="sticky note input">
+      <h4>Sticky Note</h4>
+      <textarea id="inputNote" placeholder="Write a quick note..."></textarea>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
+        <button id="submitBtn" class="btn primary">Add</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+const LS_KEY = 'ql_notes_v2';
+function genId(){ return 'n_' + Math.random().toString(36).slice(2,10); }
+function loadNotes(){ try{ const r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : []; }catch(e){ return []; } }
+function saveNotes(notes){ localStorage.setItem(LS_KEY, JSON.stringify(notes)); }
+
+const notesArea = document.getElementById('notesArea');
+const addBtn = document.getElementById('addBtn');
+const clearBtn = document.getElementById('clearBtn');
+const exportBtn = document.getElementById('exportBtn');
+const importBtn = document.getElementById('importBtn');
+const inputNote = document.getElementById('inputNote');
+const submitBtn = document.getElementById('submitBtn');
+
+let dragging = null;
+let offset = {x:0,y:0};
+
+function createNoteElement(note){
+  const el = document.createElement('div');
+  el.className = 'note';
+  el.style.left = (note.x || 20) + 'px';
+  el.style.top = (note.y || 20) + 'px';
+  el.style.transform = `rotate(${note.rot || (Math.random()*6-3)}deg)`;
+  el.dataset.id = note.id;
+
+  const content = document.createElement('div');
+  content.className = 'note-content';
+  content.contentEditable = true;
+  content.spellcheck = false;
+  content.innerText = note.text || '';
+  content.addEventListener('blur', ()=> { updateNote(note.id, content.innerText); });
+  content.addEventListener('keydown', (e)=> { if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); content.blur(); } });
+
+  const meta = document.createElement('div');
+  meta.className = 'note-meta';
+  const del = document.createElement('button'); del.innerText='Delete';
+  del.addEventListener('click', ()=> deleteNote(note.id));
+  meta.appendChild(del);
+
+  el.appendChild(content);
+  el.appendChild(meta);
+
+  el.addEventListener('mousedown', (ev)=> {
+    dragging = el;
+    const rect = el.getBoundingClientRect();
+    offset.x = ev.clientX - rect.left;
+    offset.y = ev.clientY - rect.top;
+    document.body.style.userSelect = 'none';
+  });
+  el.addEventListener('touchstart', (ev)=> {
+    dragging = el;
+    const t = ev.touches[0];
+    const rect = el.getBoundingClientRect();
+    offset.x = t.clientX - rect.left;
+    offset.y = t.clientY - rect.top;
+  }, {passive:true});
+
+  return el;
+}
+
+function renderNotes(){
+  notesArea.innerHTML='';
+  const notes=loadNotes();
+  for(const n of notes){ notesArea.appendChild(createNoteElement(n)); }
+}
+
+document.addEventListener('mousemove',(ev)=>{ if(!dragging) return; const x=ev.clientX-offset.x-notesArea.getBoundingClientRect().left+notesArea.scrollLeft; const y=ev.clientY-offset.y-notesArea.getBoundingClientRect().top+notesArea.scrollTop; dragging.style.left=Math.max(6,x)+'px'; dragging.style.top=Math.max(6,y)+'px'; });
+document.addEventListener('mouseup',()=>{ if(dragging){ persistPosition(dragging); dragging=null; document.body.style.userSelect=''; } });
+document.addEventListener('touchmove',(ev)=>{ if(!dragging) return; const t=ev.touches[0]; const x=t.clientX-offset.x-notesArea.getBoundingClientRect().left+notesArea.scrollLeft; const y=t.clientY-offset.y-notesArea.getBoundingClientRect().top+notesArea.scrollTop; dragging.style.left=Math.max(6,x)+'px'; dragging.style.top=Math.max(6,y)+'px'; },{passive:true});
+document.addEventListener('touchend',()=>{ if(dragging){ persistPosition(dragging); dragging=null; } });
+
+function persistPosition(el){ const id=el.dataset.id; const notes=loadNotes(); const idx=notes.findIndex(x=>x.id===id); if(idx>=0){ notes[idx].x=parseInt(el.style.left,10)||0; notes[idx].y=parseInt(el.style.top,10)||0; saveNotes(notes); } }
+function addNoteWithText(text=''){ const notes=loadNotes(); const n={id:genId(),text:text,x:30+(notes.length%4)*24,y:30+(Math.floor(notes.length/4)%4)*18,rot:(Math.random()*6-3).toFixed(2)}; notes.unshift(n); saveNotes(notes); renderNotes(); }
+function updateNote(id,text){ const notes=loadNotes(); const idx=notes.findIndex(x=>x.id===id); if(idx>=0){ notes[idx].text=text; saveNotes(notes); } }
+function deleteNote(id){ let notes=loadNotes(); notes=notes.filter(x=>x.id!==id); saveNotes(notes); renderNotes(); }
+function clearAll(){ if(confirm('Clear all notes?')){ localStorage.removeItem(LS_KEY); renderNotes(); } }
+function exportNotes(){ const data=JSON.stringify(loadNotes(),null,2); const w=window.open(); w.document.open(); w.document.write('<pre>'+data+'</pre>'); w.document.close(); }
+function importNotes(){ const txt=prompt('Paste exported notes JSON here:'); try{ const parsed=JSON.parse(txt); if(Array.isArray(parsed)){ localStorage.setItem(LS_KEY,JSON.stringify(parsed)); renderNotes(); } else alert('Invalid format.'); }catch(e){ alert('Invalid JSON.'); } }
+
+addBtn.addEventListener('click',()=>addNoteWithText(''));
+clearBtn.addEventListener('click',clearAll);
+exportBtn.addEventListener('click',exportNotes);
+importBtn.addEventListener('click',importNotes);
+submitBtn.addEventListener('click',()=>{ const val=inputNote.value.trim(); if(val) addNoteWithText(val); inputNote.value=''; });
+
+if(loadNotes().length===0){ addNoteWithText("Breathe. One step at a time."); addNoteWithText("Grocery: milk • eggs • bread"); }
+renderNotes();
+</script>
+
+</body>
+</html>
