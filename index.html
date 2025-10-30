@@ -13,7 +13,7 @@
 html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;-webkit-font-smoothing:antialiased}
 body{background:linear-gradient(180deg,#f3f6f9,#eef2f6);padding:18px;display:flex;justify-content:center;color:var(--ink)}
 .container{width:100%;max-width:1300px;display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start}
-.board{background:var(--board);border-radius:12px;padding:20px;min-height:80vh;box-shadow:var(--shadow);border:1px solid rgba(0,0,0,0.04);position:relative;overflow:auto}
+.board{background:var(--board);border-radius:12px;padding:20px;min-height:80vh;box-shadow:var(--shadow);border:1px solid rgba(0,0,0,0.04);position:relative;overflow:auto;cursor:pointer}
 .board h1{margin:0;font-size:28px}
 .controls{display:flex;gap:8px;margin-bottom:12px}
 .btn{padding:8px 12px;border-radius:10px;border:none;cursor:pointer;font-weight:700}
@@ -34,22 +34,25 @@ textarea#inputNote{width:100%;min-height:96px;resize:vertical;padding:10px;borde
 .overlay{position:fixed;inset:0;display:none;place-items:center;background:linear-gradient(180deg, rgba(8,8,9,0.6), rgba(8,8,9,0.86));z-index:90;backdrop-filter:blur(4px);color:#cfe8ff}
 .panel{width:min(760px,94%);max-height:86vh;overflow:auto;background:linear-gradient(180deg,#07080a,#050405);border-radius:10px;padding:22px;font-family:monospace;font-size:15px;color:#cfe8ff;line-height:1.5}
 .closeX{position:absolute;right:14px;top:10px;background:transparent;border:none;color:#dbe;font-size:18px;cursor:pointer}
-.fullscreen{position:fixed;inset:0;background:#000;color:#0f0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:monospace;font-size:20px;z-index:9999;white-space:pre-wrap}
+.matrix-screen{position:fixed;inset:0;background:#000;color:#0f0;font-family:monospace;font-size:20px;padding:24px;white-space:pre;display:none;z-index:100;overflow:auto;}
 </style>
 </head>
 <body>
 <button id="loginBtn" class="tiny-login" title="Login (disabled)">Login</button>
 
 <div class="container">
-  <main class="board">
+  <main class="board" id="board">
     <h1>Sticky Notes</h1>
+
     <div class="controls">
       <button id="addBtn" class="btn ghost">+ New Note</button>
       <button id="exportBtn" class="btn">Export</button>
       <button id="importBtn" class="btn ghost">Import</button>
       <button id="clearBtn" class="btn" style="background:#f3f4f6;color:#111;border:1px solid rgba(0,0,0,0.04);">Clear All</button>
     </div>
-    <div id="notesArea" class="notes-area" tabindex="0"></div>
+
+    <div id="notesArea" class="notes-area"></div>
+    <footer class="small"></footer>
   </main>
 
   <aside class="side">
@@ -69,17 +72,16 @@ textarea#inputNote{width:100%;min-height:96px;resize:vertical;padding:10px;borde
   </div>
 </div>
 
-<div id="loginScreen" class="fullscreen" style="display:none"></div>
-
-<audio id="bootSound" src="https://www.soundjay.com/misc/sounds/bell-ringing-01.mp3" preload="auto"></audio>
+<div id="matrixScreen" class="matrix-screen"></div>
 
 <script>
-const STORAGE_KEY = 'sticky_notes_app_v1';
+const STORAGE_KEY = 'sticky_notes_app_v2';
 const SECRET_PHRASE = "It is coming, but I will not allow it to succeed.";
 
 function genId(){ return 'n_' + Math.random().toString(36).slice(2,10); }
 function loadNotes(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }catch(e){ return []; } }
 function saveNotes(notes){ localStorage.setItem(STORAGE_KEY, JSON.stringify(notes)); }
+function trimOnly(s){ return (s || '').trim(); }
 
 const notesArea = document.getElementById('notesArea');
 const addBtn = document.getElementById('addBtn');
@@ -92,21 +94,17 @@ const loginBtn = document.getElementById('loginBtn');
 const overlay = document.getElementById('overlay');
 const overlayText = document.getElementById('overlayText');
 const closeOverlay = document.getElementById('closeOverlay');
-
-const loginScreen = document.getElementById('loginScreen');
-const bootSound = document.getElementById('bootSound');
+const matrixScreen = document.getElementById('matrixScreen');
 
 let dragging = null;
 let offset = { x:0, y:0 };
 let unlocked = false;
 
+/* Note CRUD */
 function createNoteElement(note){
   const el = document.createElement('div');
   el.className = 'note';
-  el.style.left = (note.x||20)+'px';
-  el.style.top  = (note.y||20)+'px';
-  el.style.transform = `rotate(${note.rot||(Math.random()*6-3)}deg)`;
-  el.dataset.id = note.id;
-  const content = document.createElement('div');
-  content.className='note-content';
-  content.content
+  el.style.left = (note.x || 20) + 'px';
+  el.style.top  = (note.y || 20) + 'px';
+  el.style.transform = `rotate(${note.rot || (Math.random()*6-3)}deg)`;
+  el
