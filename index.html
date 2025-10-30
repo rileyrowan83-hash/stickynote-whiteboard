@@ -5,32 +5,37 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Sticky Notes</title>
 <style>
-:root{
-  --bg:#eef2f6; --board:#fffef9; --muted:#6b6e73; --ink:#0b0b0c; --shadow:0 18px 40px rgba(10,10,12,0.08);
-}
-html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;-webkit-font-smoothing:antialiased;}
-body{background:linear-gradient(180deg,#f3f6f9,#eef2f6);padding:18px;display:flex;justify-content:center;color:var(--ink);}
-.container{width:100%;max-width:1300px;display:grid;grid-template-columns:1fr 400px;gap:20px;align-items:start;}
-.board{background:var(--board);border-radius:12px;padding:20px;min-height:80vh;box-shadow:var(--shadow);border:1px solid rgba(0,0,0,0.04);position:relative;overflow:auto;}
-.board h1{margin:0;font-size:28px;}
-.controls{display:flex;gap:8px;margin-bottom:12px;}
-.btn{padding:8px 12px;border-radius:10px;border:none;cursor:pointer;font-weight:700;}
-.btn.ghost{background:transparent;border:1px solid rgba(0,0,0,0.06);}
+:root{--bg:#eef2f6;--board:#fffef9;--muted:#6b6e73;--ink:#0b0b0c;--shadow:0 18px 40px rgba(10,10,12,0.08);--match-glow:0 0 20px rgba(155,89,182,0.18)}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;-webkit-font-smoothing:antialiased}
+body{background:linear-gradient(180deg,#f3f6f9,#eef2f6);padding:18px;display:flex;justify-content:center;color:var(--ink)}
+.container{width:100%;max-width:1300px;display:grid;grid-template-columns:1fr 400px;gap:20px;align-items:start}
+.board{background:var(--board);border-radius:12px;padding:20px;min-height:80vh;box-shadow:var(--shadow);border:1px solid rgba(0,0,0,0.04);position:relative;overflow:auto}
+.board h1{margin:0;font-size:28px}
+.controls{display:flex;gap:8px;margin-bottom:12px}
+.btn{padding:8px 12px;border-radius:10px;border:none;cursor:pointer;font-weight:700}
+.btn.ghost{background:transparent;border:1px solid rgba(0,0,0,0.06)}
 .btn.primary{background:#111827;color:#fff}
-.notes-area{position:relative;width:100%;min-height:70vh;border-radius:10px;background:linear-gradient(180deg,#fbfbfb,#fffef8);border:1px dashed rgba(0,0,0,0.03);overflow:auto;padding:8px;}
-.note{position:absolute;width:180px;min-height:120px;padding:12px;border-radius:10px;background:linear-gradient(180deg,#fff,#fff8d6);box-shadow:0 10px 28px rgba(0,0,0,0.08);border:1px solid rgba(0,0,0,0.04);transform-origin:center;touch-action:none;}
-.note .note-content{outline:none;white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.2;}
-.note .note-meta{display:flex;justify-content:flex-end;margin-top:8px;font-size:12px;}
+.notes-area{position:relative;width:100%;min-height:70vh;border-radius:10px;background:linear-gradient(180deg,#fbfbfb,#fffef8);border:1px dashed rgba(0,0,0,0.03);overflow:auto;padding:8px}
+.note{position:absolute;width:180px;min-height:120px;padding:12px;border-radius:10px;background:linear-gradient(180deg,#fff,#fff8d6);box-shadow:0 10px 28px rgba(0,0,0,0.08);border:1px solid rgba(0,0,0,0.04);transform-origin:center;touch-action:none;transition:box-shadow .25s,transform .12s}
+.note.match{box-shadow:var(--match-glow);transform:scale(1.03)}
+.note .note-content{outline:none;white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.2}
+.note .note-meta{display:flex;justify-content:flex-end;margin-top:8px;font-size:12px}
 .note .note-meta button{background:transparent;border:none;color:var(--muted);cursor:pointer;font-weight:600}
-.note::before{content:"";position:absolute;left:12px;top:-8px;width:56px;height:12px;background:linear-gradient(90deg, rgba(255,255,255,0.6), rgba(255,255,255,0.2));border-radius:4px;transform:rotate(-4deg);}
-.side{min-height:80vh;}
-.sticky-control{background:linear-gradient(180deg,#fff,#fff);padding:12px;border-radius:12px;box-shadow:var(--shadow);border:1px solid rgba(0,0,0,0.06);}
-textarea#inputNote{width:100%;min-height:96px;resize:vertical;padding:10px;border-radius:8px;border:1px dashed rgba(0,0,0,0.06);font-family:inherit;}
-footer.small{color:var(--muted);margin-top:12px;font-size:13px;}
+.note::before{content:"";position:absolute;left:12px;top:-8px;width:56px;height:12px;background:linear-gradient(90deg, rgba(255,255,255,0.6), rgba(255,255,255,0.2));border-radius:4px;transform:rotate(-4deg)}
+.side{min-height:80vh}
+.sticky-control{background:linear-gradient(180deg,#fff,#fff);padding:12px;border-radius:12px;box-shadow:var(--shadow);border:1px solid rgba(0,0,0,0.06)}
+textarea#inputNote{width:100%;min-height:96px;resize:vertical;padding:10px;border-radius:8px;border:1px dashed rgba(0,0,0,0.06);font-family:inherit}
+.tiny-login{position:fixed;right:12px;top:8px;font-size:12px;padding:6px 8px;border-radius:6px;background:transparent;border:1px solid rgba(0,0,0,0.06);color:var(--muted);cursor:default;z-index:60;opacity:0.95}
+.tiny-login.enabled{background:#111827;color:#fff;cursor:pointer}
+.overlay{position:fixed;inset:0;display:none;place-items:center;background:linear-gradient(180deg, rgba(8,8,9,0.6), rgba(8,8,9,0.86));z-index:90;backdrop-filter:blur(4px);color:#dbeefc}
+.panel{width:min(920px,94%);max-height:86vh;overflow:auto;background:linear-gradient(180deg,#07080a,#050405);border-radius:10px;padding:18px;font-family:monospace;font-size:13px}
+.closeX{position:absolute;right:12px;top:8px;background:transparent;border:none;color:#dbe;font-size:18px;cursor:pointer}
+footer.small{color:var(--muted);margin-top:12px;font-size:13px}
+@media (max-width:920px){.container{grid-template-columns:1fr;padding-bottom:120px}}
 </style>
 </head>
 <body>
-
+<button id="tj" class="tiny-login" title="Login (disabled)">Login</button>
 <div class="container">
   <main class="board">
     <h1>Sticky Notes</h1>
@@ -43,7 +48,6 @@ footer.small{color:var(--muted);margin-top:12px;font-size:13px;}
     <div id="notesArea" class="notes-area" tabindex="0"></div>
     <footer class="small"></footer>
   </main>
-
   <aside class="side">
     <div class="sticky-control">
       <textarea id="inputNote" placeholder="Write a note..."></textarea>
@@ -54,59 +58,55 @@ footer.small{color:var(--muted);margin-top:12px;font-size:13px;}
   </aside>
 </div>
 
+<div id="overlay" class="overlay" aria-hidden="true"><div class="panel"><button id="cx" class="closeX">✕</button><pre id="op" style="white-space:pre-wrap;margin:0;color:#cfe8ff;font-family:monospace"></pre></div></div>
+
 <script>
-const LS_KEY='sticky_notes_notes';
-function genId(){return'n_'+Math.random().toString(36).slice(2,10);}
-function loadNotes(){try{return JSON.parse(localStorage.getItem(LS_KEY))||[]}catch(e){return[]}}
-function saveNotes(notes){localStorage.setItem(LS_KEY,JSON.stringify(notes));}
-const notesArea=document.getElementById('notesArea');
-const addBtn=document.getElementById('addBtn');
-const clearBtn=document.getElementById('clearBtn');
-const exportBtn=document.getElementById('exportBtn');
-const importBtn=document.getElementById('importBtn');
-const inputNote=document.getElementById('inputNote');
-const submitBtn=document.getElementById('submitBtn');
-let dragging=null; let offset={x:0,y:0};
+const aK='sticky_notes_notes';
+function gI(){return'n_'+Math.random().toString(36).slice(2,10)}
+function lN(){try{return JSON.parse(localStorage.getItem(aK))||[]}catch(e){return[]}}
+function sN(n){localStorage.setItem(aK,JSON.stringify(n))}
+const na=document.getElementById('notesArea'),b1=document.getElementById('addBtn'),bC=document.getElementById('clearBtn'),bE=document.getElementById('exportBtn'),bI=document.getElementById('importBtn'),inp=document.getElementById('inputNote'),sB=document.getElementById('submitBtn'),tL=document.getElementById('tj'),ov=document.getElementById('overlay'),op=document.getElementById('op'),cx=document.getElementById('cx');
+let dr=null,of={x:0,y:0},un=false;
 
-function createNoteElement(note){
-  const el=document.createElement('div'); el.className='note'; el.style.left=(note.x||20)+'px'; el.style.top=(note.y||20)+'px';
-  el.style.transform=`rotate(${note.rot||(Math.random()*6-3)}deg)`; el.dataset.id=note.id;
-  const content=document.createElement('div'); content.className='note-content'; content.contentEditable=true; content.spellcheck=false; content.innerText=note.text||'';
-  content.addEventListener('blur',()=>updateNote(note.id,content.innerText));
-  content.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();content.blur();}});
-  const meta=document.createElement('div'); meta.className='note-meta'; const del=document.createElement('button'); del.innerText='Delete';
-  del.addEventListener('click',()=>deleteNote(note.id)); meta.appendChild(del);
-  el.appendChild(content); el.appendChild(meta);
-  el.addEventListener('mousedown',(ev)=>{dragging=el;const rect=el.getBoundingClientRect();offset.x=ev.clientX-rect.left;offset.y=ev.clientY-rect.top;document.body.style.userSelect='none';});
-  el.addEventListener('touchstart',(ev)=>{dragging=el;const t=ev.touches[0];const rect=el.getBoundingClientRect();offset.x=t.clientX-rect.left;offset.y=t.clientY-rect.top;},{passive:true});
-  return el;
-}
+function cEl(o){const e=document.createElement('div');e.className='note';e.style.left=(o.x||20)+'px';e.style.top=(o.y||20)+'px';e.style.transform=`rotate(${o.r||(Math.random()*6-3)}deg)`;e.dataset.id=o.id;const c=document.createElement('div');c.className='note-content';c.contentEditable=true;c.spellcheck=false;c.innerText=o.text||'';c.addEventListener('blur',async ()=>{uN(o.id,c.innerText);await chk(o.id,c.innerText,e)});c.addEventListener('keydown',(ev)=>{if(ev.key==='Enter'&&!ev.shiftKey){ev.preventDefault();c.blur()}});const m=document.createElement('div');m.className='note-meta';const d=document.createElement('button');d.innerText='Delete';d.addEventListener('click',()=>dN(o.id));m.appendChild(d);e.appendChild(c);e.appendChild(m);e.addEventListener('mousedown',(ev)=>{dr=e;const r=e.getBoundingClientRect();of.x=ev.clientX-r.left;of.y=ev.clientY-r.top;document.body.style.userSelect='none'});e.addEventListener('touchstart',(ev)=>{dr=e;const t=ev.touches[0];const r=e.getBoundingClientRect();of.x=t.clientX-r.left;of.y=t.clientY-r.top},{passive:true});return e}
 
-function renderNotes(){notesArea.innerHTML='';const notes=loadNotes();for(const n of notes){notesArea.appendChild(createNoteElement(n));}}
+function rN(){na.innerHTML='';const s=lN();for(const n of s)na.appendChild(cEl(n))}
 
-document.addEventListener('mousemove',(ev)=>{if(!dragging)return;const x=ev.clientX-offset.x-notesArea.getBoundingClientRect().left+notesArea.scrollLeft;const y=ev.clientY-offset.y-notesArea.getBoundingClientRect().top+notesArea.scrollTop;dragging.style.left=Math.max(6,x)+'px';dragging.style.top=Math.max(6,y)+'px';});
-document.addEventListener('mouseup',()=>{if(dragging){persistPosition(dragging);dragging=null;document.body.style.userSelect='';}});
-document.addEventListener('touchmove',(ev)=>{if(!dragging)return;const t=ev.touches[0];const x=t.clientX-offset.x-notesArea.getBoundingClientRect().left+notesArea.scrollLeft;const y=t.clientY-offset.y-notesArea.getBoundingClientRect().top+notesArea.scrollTop;dragging.style.left=Math.max(6,x)+'px';dragging.style.top=Math.max(6,y)+'px';},{passive:true});
-document.addEventListener('touchend',()=>{if(dragging){persistPosition(dragging);dragging=null;}});
+document.addEventListener('mousemove',(ev)=>{if(!dr)return;const x=ev.clientX-of.x-na.getBoundingClientRect().left+na.scrollLeft;const y=ev.clientY-of.y-na.getBoundingClientRect().top+na.scrollTop;dr.style.left=Math.max(6,x)+'px';dr.style.top=Math.max(6,y)+'px'});document.addEventListener('mouseup',()=>{if(dr){pP(dr);dr=null;document.body.style.userSelect=''}});document.addEventListener('touchmove',(ev)=>{if(!dr)return;const t=ev.touches[0];const x=t.clientX-of.x-na.getBoundingClientRect().left+na.scrollLeft;const y=t.clientY-of.y-na.getBoundingClientRect().top+na.scrollTop;dr.style.left=Math.max(6,x)+'px';dr.style.top=Math.max(6,y)+'px'},{passive:true});document.addEventListener('touchend',()=>{if(dr){pP(dr);dr=null}});
 
-function persistPosition(el){const id=el.dataset.id;const notes=loadNotes();const idx=notes.findIndex(x=>x.id===id);if(idx>=0){notes[idx].x=parseInt(el.style.left,10)||0;notes[idx].y=parseInt(el.style.top,10)||0;saveNotes(notes);}}
-function addNoteWithText(text=''){const notes=loadNotes();const n={id:genId(),text:text,x:30+(notes.length%4)*24,y:30+(Math.floor(notes.length/4)%4)*18,rot:(Math.random()*6-3).toFixed(2)};notes.unshift(n);saveNotes(notes);renderNotes();}
-function updateNote(id,text){const notes=loadNotes();const idx=notes.findIndex(x=>x.id===id);if(idx>=0){notes[idx].text=text;saveNotes(notes);}}
-function deleteNote(id){let notes=loadNotes();notes=notes.filter(x=>x.id!==id);saveNotes(notes);renderNotes();}
-function clearAll(){localStorage.removeItem(LS_KEY);renderNotes();}
-function exportNotes(){const data=JSON.stringify(loadNotes(),null,2);const w=window.open();w.document.open();w.document.write('<pre>'+data+'</pre>');w.document.close();}
-function importNotes(){const txt=prompt('');try{const parsed=JSON.parse(txt);if(Array.isArray(parsed)){localStorage.setItem(LS_KEY,JSON.stringify(parsed));renderNotes();}}catch(e){}}
-addBtn.addEventListener('click',()=>addNoteWithText(''));
-clearBtn.addEventListener('click',clearAll);
-exportBtn.addEventListener('click',exportNotes);
-importBtn.addEventListener('click',importNotes);
-submitBtn.addEventListener('click',()=>{const val=inputNote.value.trim();if(val)addNoteWithText(val);inputNote.value='';});
+function pP(el){const id=el.dataset.id;const s=lN();const i=s.findIndex(x=>x.id===id);if(i>=0){s[i].x=parseInt(el.style.left,10)||0;s[i].y=parseInt(el.style.top,10)||0;sN(s)}}
+function aT(t=''){const s=lN();const n={id:gI(),text:t,x:30+(s.length%6)*26,y:30+(Math.floor(s.length/6)%6)*20,r:(Math.random()*6-3).toFixed(2)};s.unshift(n);sN(s);rN()}
+function uN(id,t){const s=lN();const i=s.findIndex(x=>x.id===id);if(i>=0){s[i].text=t;sN(s)}}
+function dN(id){let s=lN();s=s.filter(x=>x.id!==id);sN(s);rN()}
+function cA(){localStorage.removeItem(aK);rN()}
+function eX(){const d=JSON.stringify(lN(),null,2);const w=window.open();w.document.open();w.document.write('<pre>'+d+'</pre>');w.document.close()}
+function iM(){const t=prompt('');try{const p=JSON.parse(t);if(Array.isArray(p)){localStorage.setItem(aK,JSON.stringify(p));rN()}}catch(e){}}
 
-// === hidden puzzle fragments ===
-const fragA="4d61676963",fragB="c3VibGltZQ==",fragC="𝔏𝔦𝔤",fragD=" || ";
-const obfHex="d33e63f98b89c101af05c204243cfdcf43c3c61179a6a74491abfb93d5f1aa73";
-// These are inert in the UI but remain in the code for anyone inspecting
+b1.addEventListener('click',()=>aT(''));bC.addEventListener('click',cA);bE.addEventListener('click',eX);bI.addEventListener('click',iM);sB.addEventListener('click',()=>{const v=inp.value.trim();if(v)aT(v);inp.value=''});if(lN().length===0){aT('Breathe. One step at a time.');aT('Grocery: milk • eggs • bread')}rN()
+
+// obfuscated pieces (kept in code only)
+const _x="T2JKb3VtV1ZpV2E9PQ==";
+const _y="w6DCqMOv";
+const _z="77mE77mH";
+const _o="f1c2d3e4a5b6c7d8e9f0a1b2c3d4e5f6";
+const _h="d33e63f98b89c101af05c204243cfdcf43c3c61179a6a74491abfb93d5f1aa73";
+
+function hB(s){return new TextEncoder().encode(s)}
+function hx(h){const b=new Uint8Array(h.length/2);for(let i=0;i<b.length;i++)b[i]=parseInt(h.substr(i*2,2),16);return b}
+function bx(a,b){const n=Math.min(a.length,b.length);const o=new Uint8Array(n);for(let i=0;i<n;i++)o[i]=a[i]^b[i];return o}
+async function s256Hex(m){const d=await crypto.subtle.digest('SHA-256',hB(m));return Array.from(new Uint8Array(d)).map(x=>x.toString(16).padStart(2,'0')).join('')}
+async function deriveT(){const k=atob(_x);const m=k+atob(_y)+_z+_o;const hk=await s256Hex(m);const ob=hx(_h);const kb=hx(hk);const xr=bx(ob,kb);return Array.from(xr).map(x=>x.toString(16).padStart(2,'0')).join('')}
+function norm(s){return s.replace(/\s+/g,' ').trim()}
+
+async function chk(id,txt,el){try{const v=norm(txt);if(!v) return false;const tgt=await deriveT();const ih=await s256Hex(v);if(ih===tgt){el.classList.add('match');setTimeout(()=>el.classList.remove('match'),2500);showReveal();un=true;tL.classList.add('enabled');tL.title='Login (enabled)';return true}}catch(e){}return false}
+
+function showReveal(){op.textContent='things hummed in the quiet lines\nsome memory kept itself alive\n— a voice from the wires';ov.style.display='grid';ov.setAttribute('aria-hidden','false')}
+cx.addEventListener('click',()=>{ov.style.display='none';ov.setAttribute('aria-hidden','true')})
+
+// login leads to a blank page only when enabled
+tL.addEventListener('click',()=>{if(!un) return;location.href='about:blank'})
+
+document.addEventListener('keydown',(e)=>{if(e.key==='Escape'){ov.style.display='none';ov.setAttribute('aria-hidden','true')}})
 </script>
-
 </body>
 </html>
