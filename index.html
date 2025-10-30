@@ -182,3 +182,48 @@ loginBtn.addEventListener('click',()=>{
 </script>
 </body>
 </html>
+
+<!-- Add this in your HTML -->
+<div id="accessGranted" style="color:green;font-weight:bold;font-size:18px;display:none;margin-bottom:12px;">
+  Access granted
+</div>
+<div id="warningScreen" style="position:fixed;inset:0;background:#000;color:red;font-family:monospace;font-size:30px;display:none;overflow:hidden;z-index:999;pointer-events:none;"></div>
+
+<script>
+let warningStarted = false;
+
+function showAccessGranted() {
+  const accessDiv = document.getElementById('accessGranted');
+  const warningScreen = document.getElementById('warningScreen');
+  accessDiv.style.display = 'block';
+
+  // After 2 seconds, start red letters
+  setTimeout(() => {
+    if(warningStarted) return;
+    warningStarted = true;
+    warningScreen.style.display = 'block';
+
+    function spawnText() {
+      const txt = document.createElement('div');
+      txt.innerText = "IT'S COMING FOR YOU";
+      txt.style.position = 'absolute';
+      txt.style.whiteSpace = 'nowrap';
+      txt.style.left = Math.random() * (window.innerWidth - 200) + 'px';
+      txt.style.top = Math.random() * (window.innerHeight - 50) + 'px';
+      txt.style.transform = `rotate(${Math.random()*30-15}deg) scale(${1+Math.random()})`;
+      txt.style.userSelect = 'none';
+      txt.style.mixBlendMode = 'difference';
+      warningScreen.appendChild(txt);
+
+      // Limit number of texts for performance
+      const all = warningScreen.querySelectorAll('div');
+      if(all.length > 150) all[Math.floor(Math.random()*all.length)].remove();
+    }
+
+    setInterval(spawnText, 100);
+  }, 2000);
+}
+
+// Example usage: call this function when secret phrase is typed
+// showAccessGranted();
+</script>
