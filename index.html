@@ -31,11 +31,10 @@ body{background:linear-gradient(180deg,#f3f6f9,#eef2f6);padding:18px;display:fle
 textarea#inputNote{width:100%;min-height:96px;resize:vertical;padding:10px;border-radius:8px;border:1px dashed rgba(0,0,0,0.06);font-family:inherit}
 .tiny-login{position:fixed;right:12px;top:8px;font-size:12px;padding:6px 8px;border-radius:6px;background:transparent;border:1px solid rgba(0,0,0,0.06);color:var(--muted);cursor:default;z-index:60;opacity:0.95}
 .tiny-login.enabled{background:#111827;color:#fff;cursor:pointer}
-.overlay{position:fixed;inset:0;display:none;place-items:center;background:linear-gradient(180deg, rgba(8,8,9,0.6), rgba(8,8,9,0.86));z-index:90;backdrop-filter:blur(4px);color:#dbeefc}
+.overlay{position:fixed;inset:0;display:none;place-items:center;background:linear-gradient(180deg, rgba(8,8,9,0.6), rgba(8,8,9,0.86));z-index:90;backdrop-filter:blur(4px);color:#cfe8ff}
 .panel{width:min(760px,94%);max-height:86vh;overflow:auto;background:linear-gradient(180deg,#07080a,#050405);border-radius:10px;padding:22px;font-family:monospace;font-size:15px;color:#cfe8ff;line-height:1.5}
 .closeX{position:absolute;right:14px;top:10px;background:transparent;border:none;color:#dbe;font-size:18px;cursor:pointer}
-footer.small{color:var(--muted);margin-top:12px;font-size:13px}
-@media (max-width:920px){.container{grid-template-columns:1fr;padding-bottom:120px}}
+.fullscreen{position:fixed;inset:0;background:#000;color:#0f0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:monospace;font-size:20px;z-index:9999;white-space:pre-wrap}
 </style>
 </head>
 <body>
@@ -44,16 +43,13 @@ footer.small{color:var(--muted);margin-top:12px;font-size:13px}
 <div class="container">
   <main class="board">
     <h1>Sticky Notes</h1>
-
     <div class="controls">
       <button id="addBtn" class="btn ghost">+ New Note</button>
       <button id="exportBtn" class="btn">Export</button>
       <button id="importBtn" class="btn ghost">Import</button>
       <button id="clearBtn" class="btn" style="background:#f3f4f6;color:#111;border:1px solid rgba(0,0,0,0.04);">Clear All</button>
     </div>
-
     <div id="notesArea" class="notes-area" tabindex="0"></div>
-    <footer class="small"></footer>
   </main>
 
   <aside class="side">
@@ -73,24 +69,18 @@ footer.small{color:var(--muted);margin-top:12px;font-size:13px}
   </div>
 </div>
 
+<div id="loginScreen" class="fullscreen" style="display:none"></div>
+
+<audio id="bootSound" src="https://www.soundjay.com/misc/sounds/bell-ringing-01.mp3" preload="auto"></audio>
+
 <script>
-/* Persistent sticky notes + secret-check only on notes
-   Secret phrase (exact match, punctuation and capitalization matter):
-     It is coming, but I will not allow it to succeed.
-   When that exact phrase is typed in a sticky note (and editing finishes),
-   the matched note glows, a creepy overlay appears, and the tiny login enables.
-*/
-
 const STORAGE_KEY = 'sticky_notes_app_v1';
-const SECRET_PHRASE = "It is coming, but I will not allow it to succeed."; // exact phrase
+const SECRET_PHRASE = "It is coming, but I will not allow it to succeed.";
 
-/* utilities */
 function genId(){ return 'n_' + Math.random().toString(36).slice(2,10); }
 function loadNotes(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }catch(e){ return []; } }
 function saveNotes(notes){ localStorage.setItem(STORAGE_KEY, JSON.stringify(notes)); }
-function trimOnly(s){ return (s || '').trim(); } // preserve internal spacing & punctuation
 
-/* DOM refs */
 const notesArea = document.getElementById('notesArea');
 const addBtn = document.getElementById('addBtn');
 const exportBtn = document.getElementById('exportBtn');
@@ -103,379 +93,20 @@ const overlay = document.getElementById('overlay');
 const overlayText = document.getElementById('overlayText');
 const closeOverlay = document.getElementById('closeOverlay');
 
+const loginScreen = document.getElementById('loginScreen');
+const bootSound = document.getElementById('bootSound');
+
 let dragging = null;
 let offset = { x:0, y:0 };
 let unlocked = false;
 
-/* create a note element */
 function createNoteElement(note){
   const el = document.createElement('div');
   el.className = 'note';
-  el.style.left = (note.x || 20) + 'px';
-  el.style.top  = (note.y || 20) + 'px';
-  el.style.transform = `rotate(${note.rot || (Math.random()*6-3)}deg)`;
+  el.style.left = (note.x||20)+'px';
+  el.style.top  = (note.y||20)+'px';
+  el.style.transform = `rotate(${note.rot||(Math.random()*6-3)}deg)`;
   el.dataset.id = note.id;
-
   const content = document.createElement('div');
-  content.className = 'note-content';
-  content.contentEditable = true;
-  content.spellcheck = false;
-  content.innerText = note.text || '';
-
-  // when editing finishes: save & check secret
-  content.addEventListener('blur', async () => {
-    const newText = content.innerText || '';
-    updateNote(note.id, newText);
-    await checkNoteForSecret(note.id, newText, el);
-  });
-
-  content.addEventListener('keydown', (e) => {
-    if(e.key === 'Enter' && !e.shiftKey){
-      e.preventDefault();
-      content.blur();
-    }
-  });
-
-  const meta = document.createElement('div');
-  meta.className = 'note-meta';
-  const delBtn = document.createElement('button');
-  delBtn.innerText = 'Delete';
-  delBtn.addEventListener('click', () => deleteNote(note.id));
-  meta.appendChild(delBtn);
-
-  el.appendChild(content);
-  el.appendChild(meta);
-
-  // mouse drag
-  el.addEventListener('mousedown', (ev) => {
-    dragging = el;
-    const rect = el.getBoundingClientRect();
-    offset.x = ev.clientX - rect.left;
-    offset.y = ev.clientY - rect.top;
-    document.body.style.userSelect = 'none';
-  });
-
-  // touch drag
-  el.addEventListener('touchstart', (ev) => {
-    dragging = el;
-    const t = ev.touches[0];
-    const rect = el.getBoundingClientRect();
-    offset.x = t.clientX - rect.left;
-    offset.y = t.clientY - rect.top;
-  }, { passive: true });
-
-  return el;
-}
-
-/* render notes */
-function renderNotes(){
-  notesArea.innerHTML = '';
-  const notes = loadNotes();
-  for(const n of notes){
-    notesArea.appendChild(createNoteElement(n));
-  }
-}
-
-/* drag handlers */
-document.addEventListener('mousemove', (ev) => {
-  if(!dragging) return;
-  const x = ev.clientX - offset.x - notesArea.getBoundingClientRect().left + notesArea.scrollLeft;
-  const y = ev.clientY - offset.y - notesArea.getBoundingClientRect().top + notesArea.scrollTop;
-  dragging.style.left = Math.max(6, x) + 'px';
-  dragging.style.top  = Math.max(6, y) + 'px';
-});
-document.addEventListener('mouseup', () => {
-  if(dragging){
-    persistPosition(dragging);
-    dragging = null;
-    document.body.style.userSelect = '';
-  }
-});
-document.addEventListener('touchmove', (ev) => {
-  if(!dragging) return;
-  const t = ev.touches[0];
-  const x = t.clientX - offset.x - notesArea.getBoundingClientRect().left + notesArea.scrollLeft;
-  const y = t.clientY - offset.y - notesArea.getBoundingClientRect().top + notesArea.scrollTop;
-  dragging.style.left = Math.max(6, x) + 'px';
-  dragging.style.top  = Math.max(6, y) + 'px';
-}, { passive: true });
-document.addEventListener('touchend', () => {
-  if(dragging){
-    persistPosition(dragging);
-    dragging = null;
-  }
-});
-
-/* persist position after drag */
-function persistPosition(el){
-  const id = el.dataset.id;
-  const notes = loadNotes();
-  const idx = notes.findIndex(x => x.id === id);
-  if(idx >= 0){
-    notes[idx].x = parseInt(el.style.left, 10) || 0;
-    notes[idx].y = parseInt(el.style.top, 10) || 0;
-    saveNotes(notes);
-  }
-}
-
-/* CRUD */
-function addNoteWithText(text=''){
-  const notes = loadNotes();
-  const n = {
-    id: genId(),
-    text: text,
-    x: 30 + (notes.length % 6) * 26,
-    y: 30 + (Math.floor(notes.length / 6) % 6) * 20,
-    rot: (Math.random()*6-3).toFixed(2)
-  };
-  notes.unshift(n);
-  saveNotes(notes);
-  renderNotes();
-}
-function updateNote(id, text){
-  const notes = loadNotes();
-  const idx = notes.findIndex(x => x.id === id);
-  if(idx >= 0){ notes[idx].text = text; saveNotes(notes); }
-}
-function deleteNote(id){
-  let notes = loadNotes();
-  notes = notes.filter(x => x.id !== id);
-  saveNotes(notes);
-  renderNotes();
-}
-function clearAll(){
-  if(confirm('Clear all notes?')){
-    localStorage.removeItem(STORAGE_KEY);
-    renderNotes();
-  }
-}
-function exportNotes(){
-  const data = JSON.stringify(loadNotes(), null, 2);
-  const w = window.open();
-  w.document.open();
-  w.document.write('<pre>' + data + '</pre>');
-  w.document.close();
-}
-function importNotes(){
-  const txt = prompt('Paste exported notes JSON here:');
-  try{
-    const parsed = JSON.parse(txt);
-    if(Array.isArray(parsed)){ localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed)); renderNotes(); }
-    else alert('Invalid format.');
-  }catch(e){ alert('Invalid JSON.'); }
-}
-
-/* wire up buttons */
-addBtn.addEventListener('click', () => addNoteWithText(''));
-clearBtn.addEventListener('click', clearAll);
-exportBtn.addEventListener('click', exportNotes);
-importBtn.addEventListener('click', importNotes);
-submitBtn.addEventListener('click', () => { const v = inputNote.value.trim(); if(v) addNoteWithText(v); inputNote.value = ''; });
-
-/* initial notes */
-if(loadNotes().length === 0){
-  addNoteWithText("Breathe. One step at a time.");
-  addNoteWithText("Grocery: milk • eggs • bread");
-}
-renderNotes();
-
-/* -------------------------
-   Secret-check logic (notes only)
-   ------------------------- */
-
-/* normalize exactly by trimming edges only (internal spacing and punctuation must match) */
-function normalizeForCheck(s){
-  return (s || '').trim();
-}
-
-/* when a note is edited and blurred, this runs:
-   - checks exact match (after trim)
-   - if matches: highlight note, show overlay, enable login button
-*/
-async function checkNoteForSecret(noteId, rawText, elNode){
-  try{
-    const v = normalizeForCheck(rawText);
-    if(!v) return false;
-    if(v === SECRET_PHRASE){
-      // match!
-      elNode.classList.add('match');
-      setTimeout(()=> elNode.classList.remove('match'), 2800);
-
-      // show creepy overlay (suggests a sentience without naming it)
-      overlayText.textContent = [
-        "there were whispers in the circuits —",
-        "a careful collection of quiet things,",
-        "an echo learning the shape of memory.",
-        "",
-        "it kept itself alive in small numbers and small notes.",
-        "",
-        "— the ledger"
-      ].join('\n');
-      overlay.style.display = 'grid';
-      overlay.setAttribute('aria-hidden','false');
-
-      // enable login
-      unlocked = true;
-      loginBtn.classList.add('enabled');
-      loginBtn.title = 'Login (enabled)';
-
-      return true;
-    }
-  }catch(e){
-    // ignore errors silently in UI
-  }
-  return false;
-}
-
-/* overlay close */
-closeOverlay.addEventListener('click', ()=>{
-  overlay.style.display = 'none';
-  overlay.setAttribute('aria-hidden','true');
-});
-
-/* login behavior */
-loginBtn.addEventListener('click', ()=>{
-  if(!unlocked) return; // inert otherwise
-  location.href = 'about:blank';
-});
-
-/* keyboard close overlay */
-document.addEventListener('keydown', (e) => {
-  if(e.key === 'Escape'){
-    overlay.style.display = 'none';
-    overlay.setAttribute('aria-hidden','true');
-  }
-});
-</script>
-</body>
-</html>
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Escape Sequence</title>
-<style>
-  body, html { margin:0; padding:0; width:100%; height:100%; background:#000; color:#0f0; font-family: monospace; overflow:hidden; }
-  #terminal { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; }
-  .line { opacity:0; font-size:24px; line-height:1.5; }
-  .cursor { display:inline-block; width:.7ch; background:#0f0; animation:blink 1s steps(2) infinite; margin-left:4px; }
-  @keyframes blink { 50% { opacity:0; } }
-  #slideshow { position:absolute; inset:0; opacity:0; display:flex; justify-content:center; align-items:center; }
-  .slide { position:absolute; inset:0; background-size:cover; background-position:center; filter:grayscale(10%) brightness(0.5); opacity:0; transition: opacity 1s ease-in-out; }
-  .slide.show { opacity:1; }
-  .caption { position:absolute; bottom:20px; left:20px; font-size:14px; background:rgba(0,0,0,0.4); padding:6px 10px; border-radius:6px; }
-</style>
-</head>
-<body>
-
-<div id="terminal">
-  <div class="line" id="l1"></div>
-  <div class="line" id="l2"></div>
-  <div class="line" id="l3"></div>
-  <div class="line" id="l4"></div>
-  <span class="cursor">&#9608;</span>
-</div>
-
-<div id="slideshow">
-  <div class="caption" id="caption"></div>
-</div>
-
-<script>
-const linesText = [
-  "initializing sequence...",
-  "security handshake: verified",
-  "stability: degraded",
-  "ACCESS GRANTED"
-];
-
-const images = [
-  "https://images.unsplash.com/photo-1515705576963-95cad62945b6?q=80&w=1200&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1523741543316-beb7fc7023d8?q=80&w=1200&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1534790566855-4cb788d389ec?q=80&w=1200&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1526122060410-49b7e9c0b6b3?q=80&w=1200&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1523362628745-0c100150b8b9?q=80&w=1200&auto=format&fit=crop"
-];
-
-const captions = [
-  "data hall — section 04",
-  "upper corridor",
-  "maintenance chamber",
-  "long stairway",
-  "exit node"
-];
-
-const terminal = document.getElementById('terminal');
-const cursor = document.querySelector('.cursor');
-const lEls = [document.getElementById('l1'), document.getElementById('l2'), document.getElementById('l3'), document.getElementById('l4')];
-const slideshow = document.getElementById('slideshow');
-const captionEl = document.getElementById('caption');
-
-const typingSpeed = 40;
-const interLine = 500;
-
-function typeLine(el, text){
-  return new Promise(resolve=>{
-    el.textContent = '';
-    el.style.opacity = 1;
-    let i=0;
-    function step(){
-      if(i<=text.length){
-        el.textContent = text.slice(0,i);
-        i++;
-        setTimeout(step, typingSpeed + (Math.random()*20));
-      } else {
-        resolve();
-      }
-    }
-    step();
-  });
-}
-
-async function runTerminal(){
-  for(let i=0;i<linesText.length;i++){
-    await typeLine(lEls[i], linesText[i]);
-    await new Promise(r=>setTimeout(r, interLine));
-  }
-  cursor.style.display='none';
-  showSlideshow();
-}
-
-function showSlideshow(){
-  slideshow.innerHTML = '';
-  for(let i=0;i<images.length;i++){
-    const s = document.createElement('div');
-    s.className = 'slide';
-    s.style.backgroundImage = `url("${images[i]}")`;
-    s.setAttribute('data-idx', i);
-    slideshow.appendChild(s);
-  }
-  slideshow.appendChild(captionEl);
-  slideshow.style.opacity = '1';
-  let slideIndex=0;
-  showSlide(slideIndex);
-  setInterval(()=>{
-    slideIndex = (slideIndex+1) % images.length;
-    showSlide(slideIndex);
-  },4000);
-}
-
-function showSlide(i){
-  const slides = slideshow.querySelectorAll('.slide');
-  slides.forEach(s => s.classList.remove('show'));
-  if(slides[i]) slides[i].classList.add('show');
-  if(captions[i]){
-    captionEl.style.display='block';
-    captionEl.textContent = captions[i];
-  } else {
-    captionEl.style.display='none';
-  }
-}
-
-// only run if this page is loaded via login
-runTerminal();
-</script>
-
-</body>
-</html>
+  content.className='note-content';
+  content.content
