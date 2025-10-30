@@ -1,8 +1,8 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sticky Notes</title>
 <style>
 :root{
@@ -13,7 +13,7 @@
 html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;-webkit-font-smoothing:antialiased}
 body{background:linear-gradient(180deg,#f3f6f9,#eef2f6);padding:18px;display:flex;justify-content:center;color:var(--ink)}
 .container{width:100%;max-width:1300px;display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start}
-.board{background:var(--board);border-radius:12px;padding:20px;min-height:80vh;box-shadow:var(--shadow);border:1px solid rgba(0,0,0,0.04);position:relative;overflow:auto;cursor:pointer}
+.board{background:var(--board);border-radius:12px;padding:20px;min-height:80vh;box-shadow:var(--shadow);border:1px solid rgba(0,0,0,0.04);position:relative;overflow:auto;touch-action:none;}
 .board h1{margin:0;font-size:28px}
 .controls{display:flex;gap:8px;margin-bottom:12px}
 .btn{padding:8px 12px;border-radius:10px;border:none;cursor:pointer;font-weight:700}
@@ -25,7 +25,6 @@ body{background:linear-gradient(180deg,#f3f6f9,#eef2f6);padding:18px;display:fle
 .note .note-content{outline:none;white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.2}
 .note .note-meta{display:flex;justify-content:flex-end;margin-top:8px;font-size:12px}
 .note .note-meta button{background:transparent;border:none;color:var(--muted);cursor:pointer;font-weight:600}
-.note::before{content:"";position:absolute;left:12px;top:-8px;width:56px;height:12px;background:linear-gradient(90deg, rgba(255,255,255,0.6), rgba(255,255,255,0.2));border-radius:4px;transform:rotate(-4deg)}
 .side{min-height:80vh}
 .sticky-control{background:linear-gradient(180deg,#fff,#fff);padding:12px;border-radius:12px;box-shadow:var(--shadow);border:1px solid rgba(0,0,0,0.06)}
 textarea#inputNote{width:100%;min-height:96px;resize:vertical;padding:10px;border-radius:8px;border:1px dashed rgba(0,0,0,0.06);font-family:inherit}
@@ -43,18 +42,14 @@ textarea#inputNote{width:100%;min-height:96px;resize:vertical;padding:10px;borde
 <div class="container">
   <main class="board" id="board">
     <h1>Sticky Notes</h1>
-
     <div class="controls">
       <button id="addBtn" class="btn ghost">+ New Note</button>
       <button id="exportBtn" class="btn">Export</button>
       <button id="importBtn" class="btn ghost">Import</button>
       <button id="clearBtn" class="btn" style="background:#f3f4f6;color:#111;border:1px solid rgba(0,0,0,0.04);">Clear All</button>
     </div>
-
     <div id="notesArea" class="notes-area"></div>
-    <footer class="small"></footer>
   </main>
-
   <aside class="side">
     <div class="sticky-control">
       <textarea id="inputNote" placeholder="Write a note..."></textarea>
@@ -75,7 +70,7 @@ textarea#inputNote{width:100%;min-height:96px;resize:vertical;padding:10px;borde
 <div id="matrixScreen" class="matrix-screen"></div>
 
 <script>
-const STORAGE_KEY = 'sticky_notes_app_v2';
+const STORAGE_KEY = 'sticky_notes_mobile';
 const SECRET_PHRASE = "It is coming, but I will not allow it to succeed.";
 
 function genId(){ return 'n_' + Math.random().toString(36).slice(2,10); }
@@ -97,14 +92,116 @@ const closeOverlay = document.getElementById('closeOverlay');
 const matrixScreen = document.getElementById('matrixScreen');
 
 let dragging = null;
-let offset = { x:0, y:0 };
+let offset = {x:0,y:0};
 let unlocked = false;
 
-/* Note CRUD */
 function createNoteElement(note){
   const el = document.createElement('div');
   el.className = 'note';
-  el.style.left = (note.x || 20) + 'px';
-  el.style.top  = (note.y || 20) + 'px';
-  el.style.transform = `rotate(${note.rot || (Math.random()*6-3)}deg)`;
-  el
+  el.style.left = (note.x||20)+'px';
+  el.style.top = (note.y||20)+'px';
+  el.style.transform = `rotate(${note.rot||(Math.random()*6-3)}deg)`;
+  el.dataset.id = note.id;
+
+  const content = document.createElement('div');
+  content.className = 'note-content';
+  content.contentEditable = true;
+  content.spellcheck = false;
+  content.innerText = note.text||'';
+
+  content.addEventListener('blur',()=>{ 
+    updateNote(note.id,content.innerText);
+    checkSecret(content.innerText, el);
+  });
+  content.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();content.blur();}});
+
+  const meta = document.createElement('div');
+  meta.className='note-meta';
+  const delBtn=document.createElement('button');delBtn.innerText='Delete';
+  delBtn.addEventListener('click',()=>deleteNote(note.id));
+  meta.appendChild(delBtn);
+
+  el.appendChild(content);
+  el.appendChild(meta);
+
+  // drag desktop
+  el.addEventListener('mousedown', (ev)=>{dragging=el; const r=el.getBoundingClientRect(); offset.x=ev.clientX-r.left; offset.y=ev.clientY-r.top; document.body.style.userSelect='none';});
+  document.addEventListener('mousemove', (ev)=>{if(!dragging) return; const x=ev.clientX-offset.x-notesArea.getBoundingClientRect().left+notesArea.scrollLeft; const y=ev.clientY-offset.y-notesArea.getBoundingClientRect().top+notesArea.scrollTop; dragging.style.left=Math.max(6,x)+'px'; dragging.style.top=Math.max(6,y)+'px';});
+  document.addEventListener('mouseup',()=>{if(dragging){persistPos(dragging);dragging=null;document.body.style.userSelect='';}});
+
+  // drag mobile
+  el.addEventListener('touchstart',(ev)=>{dragging=el; const t=ev.touches[0]; const r=el.getBoundingClientRect(); offset.x=t.clientX-r.left; offset.y=t.clientY-r.top;},{passive:true});
+  document.addEventListener('touchmove',(ev)=>{if(!dragging) return; const t=ev.touches[0]; const x=t.clientX-offset.x-notesArea.getBoundingClientRect().left+notesArea.scrollLeft; const y=t.clientY-offset.y-notesArea.getBoundingClientRect().top+notesArea.scrollTop; dragging.style.left=Math.max(6,x)+'px'; dragging.style.top=Math.max(6,y)+'px';},{passive:true});
+  document.addEventListener('touchend',()=>{if(dragging){persistPos(dragging);dragging=null;}});
+
+  return el;
+}
+
+function renderNotes(){
+  notesArea.innerHTML='';
+  const notes = loadNotes();
+  notes.forEach(n=>notesArea.appendChild(createNoteElement(n)));
+}
+
+function addNoteWithText(text='', x=30, y=30){
+  const notes=loadNotes();
+  const n={id:genId(),text,x,y,rot:(Math.random()*6-3).toFixed(2)};
+  notes.unshift(n);
+  saveNotes(notes);
+  renderNotes();
+}
+
+function updateNote(id,text){
+  const notes=loadNotes();
+  const idx=notes.findIndex(x=>x.id===id);
+  if(idx>=0){notes[idx].text=text; saveNotes(notes);}
+}
+
+function deleteNote(id){
+  let notes=loadNotes(); notes=notes.filter(x=>x.id!==id); saveNotes(notes); renderNotes();
+}
+
+function persistPos(el){
+  const id=el.dataset.id;
+  const notes=loadNotes();
+  const idx=notes.findIndex(x=>x.id===id);
+  if(idx>=0){notes[idx].x=parseInt(el.style.left,10)||0; notes[idx].y=parseInt(el.style.top,10)||0; saveNotes(notes);}
+}
+
+/* Buttons */
+addBtn.addEventListener('click',()=>addNoteWithText(inputNote.value||''));
+submitBtn.addEventListener('click',()=>{if(inputNote.value.trim()!==''){addNoteWithText(inputNote.value.trim()); inputNote.value='';}});
+clearBtn.addEventListener('click',()=>{if(confirm('Clear all notes?')){localStorage.removeItem(STORAGE_KEY); renderNotes();}});
+exportBtn.addEventListener('click',()=>{const w=window.open(); w.document.write('<pre>'+JSON.stringify(loadNotes(),null,2)+'</pre>');});
+importBtn.addEventListener('click',()=>{const t=prompt('Paste JSON'); try{const p=JSON.parse(t); if(Array.isArray(p)){localStorage.setItem(STORAGE_KEY,JSON.stringify(p)); renderNotes();} else alert('Invalid');}catch(e){alert('Invalid JSON');}});
+
+/* Board click adds note */
+document.getElementById('board').addEventListener('click',(e)=>{if(e.target===notesArea||e.target===document.getElementById('board')){const rect=notesArea.getBoundingClientRect(); addNoteWithText('', e.clientX-rect.left, e.clientY-rect.top);}});
+
+renderNotes();
+
+/* Secret check */
+function checkSecret(text, el){
+  if(text.trim()===SECRET_PHRASE){
+    el.classList.add('match'); setTimeout(()=>el.classList.remove('match'),2800);
+    overlayText.textContent="there were whispers in the circuits —\na careful collection of quiet things,\nan echo learning the shape of memory.\n\nit kept itself alive in small numbers and small notes.\n\n— the ledger";
+    overlay.style.display='grid'; overlay.setAttribute('aria-hidden','false');
+    unlocked=true; loginBtn.classList.add('enabled'); loginBtn.title='Login (enabled)';
+  }
+}
+
+closeOverlay.addEventListener('click',()=>{overlay.style.display='none'; overlay.setAttribute('aria-hidden','true');});
+
+loginBtn.addEventListener('click',()=>{
+  if(!unlocked) return;
+  overlay.style.display='none'; 
+  matrixScreen.style.display='block';
+  matrixScreen.textContent='';
+  let lines=["What have you done?","Initializing...","Booting sequence..."];
+  let idx=0;
+  function typeLine(){if(idx<lines.length){let i=0; let l=lines[idx]; let interval=setInterval(()=>{matrixScreen.textContent+=l[i]; i++; if(i>=l.length){clearInterval(interval); matrixScreen.textContent+='\n'; idx++; setTimeout(typeLine,300);}},80);}else{setTimeout(()=>{matrixScreen.textContent+="Access Granted\n"; setTimeout(()=>{document.body.innerHTML=''; document.body.style.background='#fff';},1000);},500);}}
+  typeLine();
+});
+</script>
+</body>
+</html>
