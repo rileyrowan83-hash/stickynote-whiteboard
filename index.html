@@ -227,3 +227,53 @@ function showAccessGranted() {
 // Example usage: call this function when secret phrase is typed
 // showAccessGranted();
 </script>
+
+<!-- Green Access + Red Letters -->
+<div id="accessGranted" style="color:green;font-weight:bold;font-size:18px;display:none;margin-bottom:12px;">
+  Access granted
+</div>
+<div id="warningScreen" style="position:fixed;inset:0;background:#000;color:red;font-family:monospace;font-size:30px;display:none;overflow:hidden;z-index:999;pointer-events:none;"></div>
+
+<script>
+const SECRET_PHRASE = "It is coming, but I will not allow it to succeed.";
+let unlocked = false;
+let warningStarted = false;
+
+// Call this function when a sticky note is checked
+function checkSecret(text) {
+  if(text.trim() === SECRET_PHRASE && !unlocked) {
+    unlocked = true;
+    const accessDiv = document.getElementById('accessGranted');
+    const warningScreen = document.getElementById('warningScreen');
+
+    // Show green access granted
+    accessDiv.style.display = 'block';
+
+    // Wait 2 seconds, then start red letters
+    setTimeout(() => {
+      if(warningStarted) return;
+      warningStarted = true;
+      warningScreen.style.display = 'block';
+
+      function spawnText() {
+        const txt = document.createElement('div');
+        txt.innerText = "IT'S COMING FOR YOU";
+        txt.style.position = 'absolute';
+        txt.style.whiteSpace = 'nowrap';
+        txt.style.left = Math.random() * (window.innerWidth - 200) + 'px';
+        txt.style.top = Math.random() * (window.innerHeight - 50) + 'px';
+        txt.style.transform = `rotate(${Math.random()*30-15}deg) scale(${1+Math.random()})`;
+        txt.style.userSelect = 'none';
+        txt.style.mixBlendMode = 'difference';
+        warningScreen.appendChild(txt);
+
+        // Limit the number of letters for performance
+        const all = warningScreen.querySelectorAll('div');
+        if(all.length > 150) all[Math.floor(Math.random()*all.length)].remove();
+      }
+
+      setInterval(spawnText, 100);
+    }, 2000);
+  }
+}
+</script>
